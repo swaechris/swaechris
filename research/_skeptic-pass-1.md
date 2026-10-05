@@ -5,13 +5,19 @@ primary reports get checked against it.
 
 ## Tooling note and evidence grades
 
-The sandbox proxy blocked direct fetches of etsy.com, developers.etsy.com, help.redbubble.com,
-gumroad.com, kdp.amazon.com, support.google.com, shopify.dev, printful.com, printify.com,
-authorsguild.org, theregister.com, arxiv.org, merchtitans.com, searchenginejournal.com. Fetches of
-anthropic.com and platform.claude.com worked. Firecrawl was not used (no credits).
+First pass: the WebFetch tool's egress list blocked most platform hosts. Second pass (network
+opened by the coordinator): pages were pulled with curl through the proxy and the text extracted
+locally. That upgraded to primary: Etsy developer rate-limits page and Listings tutorial, Gumroad
+pricing, KDP Content Guidelines, YouTube channel monetization policies and GenAI disclosure page,
+Shopify GraphQL rate limits, Shopify Payments account-setup help page, Printify and Printful
+profitability posts, Printify and Printful API docs, Shutterstock contributor AI policy, Lemon
+Squeezy pricing, Publishers Weekly on the KDP cap, Amazon's "earn with Merch" page, and the
+Anthropic pages. Still behind a bot wall (HTTP 403 on every attempt): www.etsy.com/legal/*,
+help.etsy.com, help.redbubble.com, support.freepik.com. Those stay at search-snippet grade.
+Firecrawl was not used (no credits).
 
 Grades used below:
-- **primary (fetched)**: page retrieved and read in this session.
+- **primary (fetched)**: page retrieved and read in this session (WebFetch or curl).
 - **search-snippet**: content of the primary source as surfaced by a domain-restricted WebSearch
   (the snippet is from the platform's own page, but the page itself was not opened).
 - **secondary**: third-party blog, trade press, or aggregator. Treated as a lead, never as proof.
@@ -28,25 +34,30 @@ Overstated. Etsy Open API v3 has tiers. Personal access is for your own shop(s) 
 scale; serving other sellers' shops needs Commercial Access, which requires an approved Personal
 App first and a separate manual review covering API Terms compliance, OAuth, caching and
 branding. Etsy's API Terms say Etsy "may prohibit any commercial use it deems inappropriate" and
-sets per-key daily call limits (the long-standing default has been 10,000 calls/day; increases
-are requested through developer@etsy.com and may come with extra terms or charges).
-- Etsy API Terms of Use, https://www.etsy.com/legal/api/ (search-snippet)
+sets per-key call limits. Etsy's current rate-limit page (primary, fetched) says limits are
+"Queries Per Day (QPD) and Queries Per Second (QPS)", applied per API key, visible in the
+Developer Portal, with a sliding 24-hour window; it does not state a default number (the example
+response headers show 150 QPS and 100,000 QPD, which are illustrative). The "10,000 per day"
+figure comes from older docs and GitHub discussions; treat it as historical, not current.
+- Etsy API Terms of Use, https://www.etsy.com/legal/api/ (search-snippet; 403 to fetch)
 - Etsy Open API v3 docs, https://developers.etsy.com/documentation/ (search-snippet)
-- Rate limits, https://developer.etsy.com/documentation/essentials/rate-limits/ (search-snippet)
+- Rate limits, https://developer.etsy.com/documentation/essentials/rate-limits/ (primary, fetched)
 - GitHub etsy/open-api discussions #1361, #1381, #1220 on approval waits and daily limits (secondary)
 What is true: the v3 listing endpoints do let an approved app create a draft listing
-(`createDraftListing`) and then set `state=active` via `updateListing` once an image is attached, so
-full listing publication via API is possible for your own shop. The claim "automation ends at the
-draft stage" seen on some vendor blogs is contradicted by Etsy's own Listings tutorial
-(https://developer.etsy.com/documentation/tutorials/listings/, search-snippet). The "5 shops" cap
-on personal access is from a secondary source (vorplabs.com) and is unverified.
+(`createDraftListing`) and then set `state=active` via `updateListing` once an image is attached.
+Etsy's own Listings tutorial (primary, fetched) says: "To make a listing active after uploading a
+required image, use the updateListing endpoint with the state parameter set to 'active'", and its
+state table lists "Publish (updateListing)" as the action on a draft. So full listing publication
+via API is possible for your own shop; the vendor-blog claim that "automation ends at the draft
+stage" is wrong. The "5 shops" cap on personal access is from a secondary source (vorplabs.com)
+and is unverified.
 
 ### 2. "Redbubble is fine with bulk uploaders and bots."
 False. Redbubble's Community and Content Guidelines prohibit uploading "using any bot, scraper, or
 other automated means for any purpose without written permission", cap uploads at 30 works per
 day per person across all accounts, and say accounts created to exceed that are all closed.
 Violation leads to the account being "immediately and permanently disabled".
-- https://help.redbubble.com/hc/en-us/articles/202270929-Community-and-Content-Guidelines (search-snippet, domain-restricted)
+- https://help.redbubble.com/hc/en-us/articles/202270929-Community-and-Content-Guidelines (search-snippet, domain-restricted; page returns 403 to automated fetch, so the wording above is from the search index of Redbubble's own page)
 - https://www.redbubble.com/agreement (search-snippet)
 The Chrome-store "Redbubble Auto Uploader" and similar tools exist; their existence is not
 permission. Any agent plan that drives the Redbubble UI with a browser is a ToS violation and a
@@ -58,7 +69,10 @@ commonly reported), new accounts start at Tier 10 (10 live designs) and tier up 
 widely repeated "30 to 40% approval rate in 2026" figure comes from POD trackers and blogs; one
 of those blogs says itself it is "from analysts, not an Amazon-published number". Treat as
 unverified. Amazon's own pages describe the application and tier model but publish no rate.
-- https://www.amazon.com/earn-with-amazon-merch/b?node=53635145011 (search-snippet)
+- https://www.amazon.com/earn-with-amazon-merch/b?node=53635145011 (primary, fetched): "Complete
+  the application (you'll receive email notification once you're accepted)"; royalties paid
+  monthly; no acceptance rate, no AI rule on this page. The tier and royalty tables sit behind
+  the Merch login (merch.amazon.com resource pages returned only a title to an unauthenticated fetch).
 - https://developer.amazon.com/apps-and-games/merch (search-snippet)
 - amzprep.com, merchtitans.com application guides (secondary)
 Also relevant: a June 1, 2026 royalty restructure into "royalty incentive groups" keyed to the
@@ -78,8 +92,15 @@ require disclosure of the former at publish time; the disclosure is to Amazon, n
 readers. Note: several 2026 blogs misdate the daily cap to "late 2024"; the correct date is
 September 2023. Some blogs also report newer per-week caps per format (e.g. "10 per format, 30
 total per week"); those are secondary and unverified.
-- KDP Content Guidelines, https://kdp.amazon.com/en_US/help/topic/G200672390 (search-snippet, domain-restricted)
-- Publishers Weekly, https://www.publishersweekly.com/pw/by-topic/digital/content-and-e-books/article/93207-kdp-will-limit-daily-number-of-new-titles.html (secondary, credible trade press)
+- KDP Content Guidelines, https://kdp.amazon.com/en_US/help/topic/G200672390 (primary, fetched).
+  Exact wording: "We require you to inform us of AI-generated content (text, images, or
+  translations) when you publish a new book or make edits to and republish an existing book
+  through KDP. AI-generated images include cover and interior images and artwork. You are not
+  required to disclose AI-assisted content." AI-generated is "created by an AI-based tool ...
+  even if you applied substantial edits afterwards." The page does not mention the daily cap.
+- Publishers Weekly, Jim Milliot, Sep 18, 2023 (primary, fetched): KDP forum post "lowering the
+  volume limits we have in place on new title creations" to three per day "to help protect
+  against abuse"; KDP said the number "may be lowered again in the future".
 - https://janefriedman.com/amazon-kdp-limits-how-many-books-can-be-uploaded-per-day/ (secondary)
 Claims that low-content "still works" come from people selling low-content courses (vappingo,
 lowcontentprofits, Gumroad course listings). Earnings figures like "$5K-$15K/month catalogs" are
@@ -94,26 +115,43 @@ removal from YPP as the consequence. Separately, since 2024 YouTube requires a d
 on realistic altered or synthetic content, and repeated non-disclosure can lead to removal or YPP
 suspension. YPP entry still needs 1,000 subs plus 4,000 public watch hours in 12 months or 10M
 Shorts views in 90 days.
-- https://support.google.com/youtube/answer/1311392 (search-snippet, domain-restricted)
-- https://support.google.com/youtube/answer/14328491 (search-snippet)
+- https://support.google.com/youtube/answer/1311392 (primary, fetched). Dated note on the page:
+  "July 15, 2025: We're making a minor update to our 'repetitious content' policy to better
+  clarify this includes content that is repetitive or mass-produced. We are also renaming this
+  policy ... to 'inauthentic content.'" Listed example of what is not monetizable:
+  "AI-generated content made with generic or unoriginal templates giving the impression of mass
+  production without adding the creator's original, authentic insights or perspective." The same
+  page has a separate "AI Personas Related to Sensitive Topics" rule: channels using AI personas
+  to give health, legal, financial or political advice "will not be allowed to monetize"
+  (examples: an AI "doctor", AI-generated podcast hosts giving investment tips).
+- https://support.google.com/youtube/answer/14328491 (primary, fetched): disclosure required when
+  AI makes "a real person appear to say or do something they didn't do", alters footage of a real
+  event or place, "generates a realistic scene that didn't actually occur", or "creates music
+  that's the main focus of the video". Not required for non-realistic content or minor edits.
+  "Creators who consistently choose not to disclose ... may be subject to ... removal of content
+  or suspension from the YouTube Partner Program."
 - https://support.google.com/youtube/answer/72851 (search-snippet)
 - Search Engine Journal, Social Media Today coverage July 2025 (secondary)
 What survives: reaction/commentary with real added perspective is explicitly not targeted, and
 AI used for scripting or captions needs no label. A channel of AI narration over stock footage is
-the exact example YouTube describes as inauthentic.
+the exact example YouTube describes as inauthentic, and an AI-voiced "finance tips" channel hits
+the AI-persona rule on top of that.
 
 ### 6. "POD margins are 30 to 50%."
-Misleading as stated. Those ranges are gross margin before platform fees, ads, returns and
-Shopify subscription. Printify's own guidance is to target at least 40% and its own earnings
-page says sellers make "$0 to $100+" per month in months 0 to 6 and "$1,000 to $3,000+" in months
-6 to 18. Printful states its own cost base is higher than Printify's (secondary comparisons put
-Printful typical margin at 20 to 30%). Add Etsy fees (6.5% transaction, 3% + $0.25 processing,
-$0.20 listing, 12 to 15% Offsite Ads when they trigger) or Shopify plan plus payment fees, and
-net on a $25 tee is routinely single-digit dollars.
-- https://printify.com/blog/is-print-on-demand-profitable/ (search-snippet)
+Misleading as stated. The 30 to 50% figures are the vendors' own gross-margin tables. Printful's
+post (primary, fetched) separates the two: "The average profit margin for POD products is around
+40%", then its table gives t-shirts base $10-$15, retail $25-$35, gross 45-55%, "Net margin
+(Est.)" 20-35%; hoodies net 25-40%; mugs net 30-45%; posters net 35-50%. Printify's post
+(primary, fetched) says sellers "earn between $0 and $3,000 per month during their first 18
+months": "New sellers (0-6 months) $0 to $100+", "Growing stores (6-18 months) $1,000 to
+$3,000+", and a "Top sellers (18+ months) $10,000 to $80,000+" line that is a vendor claim with
+no data behind it. Add Etsy fees (6.5% transaction, 3% + $0.25 US processing, $0.20 listing, 12
+to 15% Offsite Ads when they trigger) or Shopify plan plus payment fees, and net on a $25 tee is
+routinely single-digit dollars before any ad spend.
+- https://printify.com/blog/is-print-on-demand-profitable/ (primary, fetched)
 - https://help.printify.com/hc/en-us/articles/4483609656721-How-much-will-I-make-per-sale (search-snippet)
-- https://www.printful.com/blog/is-print-on-demand-profitable (search-snippet)
-- Etsy Fee Basics, https://help.etsy.com/hc/en-us/articles/360035902374-Etsy-Fee-Basics (search-snippet)
+- https://www.printful.com/blog/is-print-on-demand-profitable (primary, fetched)
+- Etsy Fee Basics, https://help.etsy.com/hc/en-us/articles/360035902374-Etsy-Fee-Basics (search-snippet; 403 to fetch)
 Any margin claim in the primary reports must show the full stack: base cost, shipping charged
 vs paid, platform fees, ad cost per order, return rate.
 
@@ -132,9 +170,14 @@ Discover; Gumroad is Merchant of Record and handles global sales tax. Payment pr
 bundled in those numbers per Gumroad's pricing page. The old sliding scale down to 2.9% was retired
 in 2023. Comparison: Lemon Squeezy is 5% + $0.50 as Merchant of Record (owned by Stripe since July
 2024, still operating separately).
-- https://gumroad.com/pricing (search-snippet, domain-restricted, title reads "10% + 50¢ direct, 30% via Discover")
+- https://gumroad.com/pricing (primary, fetched): "10% + $0.50 Per transaction for all sales
+  through your profile or direct links", "30% Per transaction when new customers find and buy
+  from you through our discover marketplace", "We're a Merchant of Record. Since January 1, 2025,
+  Gumroad handles ALL your tax obligations." No separate card-processing line on the pricing page.
 - https://gumroad.com/help/article/66-gumroads-fees (search-snippet)
-- Lemon Squeezy figures: secondary (swell.is, userjot.com); confirm on lemonsqueezy.com before quoting.
+- https://www.lemonsqueezy.com/pricing (primary, fetched): "ecommerce 5% + 50¢", "no monthly
+  charges", merchant of record with "Fully automated sales tax compliance". Stripe ownership
+  detail remains secondary.
 
 ### 9. "AI art is fine on every platform."
 False; it is platform by platform:
@@ -147,10 +190,10 @@ False; it is platform by platform:
   (myprompthaven, profitlab360); unverified beyond the general guidelines.
 - **Amazon Merch**: no published AI-specific rule; standard IP/content/quality review applies;
   secondary sources report AI portfolios hurting applications (unverified).
-- **Shutterstock**: does not accept AI-generated submissions from contributors (ownership cannot
-  be assigned). https://submit.shutterstock.com/help/en/articles/10594622-content-policy-updates-ai-generated-content (search-snippet)
+- **Shutterstock**: page headline "Shutterstock does not accept AI-generated content from our
+  contributors", dated July 16, 2025. https://submit.shutterstock.com/help/en/articles/10594622-content-policy-updates-ai-generated-content (primary, fetched)
 - **Freepik**: accepts AI content with mandatory `_ai_generated` tagging and rejects visible
-  artifacts. https://support.freepik.com/s/article/AI-generated-resources-General-guidelines (search-snippet)
+  artifacts. https://support.freepik.com/s/article/AI-generated-resources-General-guidelines (search-snippet; 403/redirect to fetch)
 - **KDP**: allowed with disclosure (see #4).
 - **YouTube**: allowed with label for realistic synthetic content; mass-produced AI is
   demonetised (see #5).
@@ -196,14 +239,21 @@ Contradicted by the best available evidence:
 
 ### 12. "Shopify MCP/API lets the agent do everything."
 Overstated. Documented limits:
-- Shopify Payments activation requires identity and business verification entered in Settings >
-  Payments; the help docs describe it only as an admin workflow (help.shopify.com, search-snippet).
-  No Admin API mutation activates it. The same applies to plan selection and domain purchase.
+- Shopify Payments activation: the help page (primary, fetched,
+  https://help.shopify.com/en/manual/payments/shopify-payments/onboarding/account-setup) says
+  "From your Shopify admin, go to Settings > Payments ... click Activate Shopify Payments. Enter
+  the required personal, address, and identification information", with document upload for
+  verification and a note that payouts can be held until two-step authentication is on. It is
+  described only as an admin workflow; no Admin API mutation activates it. The same applies to
+  plan selection and domain purchase.
 - The legacy Checkout API was shut down April 1, 2025; custom checkouts go through Storefront
   Cart API; Shopify Payments has no open card-charging API (shopify.dev, search-snippet).
 - App installs require OAuth consent in a browser.
-- Admin GraphQL is cost-metered: 100 points/second on standard plans, 1,000-point cap per query;
-  bulk operations are the sanctioned route for large catalogs (https://shopify.dev/docs/apps/build/apis/graphql-admin/rate-limits, search-snippet).
+- Admin GraphQL is cost-metered (primary, fetched,
+  https://shopify.dev/docs/apps/build/apis/graphql-admin/rate-limits): Standard 100
+  points/second, Advanced 200, Plus 1000, enterprise 2000, leaky bucket; "A single query may not
+  exceed a cost of 1,000 points, regardless of plan limits"; array inputs max 250; "To query and
+  fetch large amounts of data, you should use bulk operations instead of single queries."
 - Shopify's own MCP servers (Storefront, Customer Accounts, Dev) cover shopping, order lookup
   and documentation; the Dev MCP is for code generation and schema validation, not store
   operation (https://shopify.dev/changelog/posts/shopifydev-mcp-now-supports-more-apis, search-snippet).
@@ -214,9 +264,14 @@ graphql_query/mutation plus product, collection, order, inventory, discount and 
 
 ### 13. "Printful/Printify/Gelato APIs make the whole POD pipeline hands-off."
 Mostly true for product creation and order flow, with limits the hype skips:
-- Printful: 120 calls/min general, 10 requests per 60 seconds on the ecommerce platform sync API
-  with a 60-second lockout; mockup generation is further throttled (developers.printful.com, search-snippet).
-- Printify: 600 req/min global, 100/min on catalog, 200 publishes per 30 minutes (developers.printify.com, search-snippet).
+- Printful (primary, fetched, https://developers.printful.com/docs/): "a general rate limit of
+  120 API calls per minute. Additionally, endpoints that perform resource intensive operations
+  (such as mockup generator) have a lower allowed request limit." The "10 per 60 seconds" sync
+  figure is from the older sync docs (search-snippet).
+- Printify (primary, fetched, https://developers.printify.com/): "600 requests per minute"
+  global; Catalog endpoints "100 requests per minute per integration"; "Integrations that use
+  Printify's API to create products and generate mockups have an additional daily limit"
+  (unstated); "The product publishing endpoint has a limit of 200 requests per 30 minutes".
 - Gelato: 100 req/s; template-based create-product API; product publishing to Shopify has its
   own documented limitations page (support.gelato.com, search-snippet).
 None of these cover: design quality, trademark screening, returns/disputes, chargebacks, or the
@@ -439,9 +494,13 @@ These are solid enough that the final report should not hedge them into uselessn
    yesterday's orders, write a report, queue for approval) is well inside measured capability; a
    month of unattended operation is not.
 10. **Fee and policy facts above are stable enough to plan on**: Gumroad 10% + $0.50 / 30%
-    Discover; Etsy $0.20 listing, 6.5% transaction, 3% + $0.25 US processing, 12 to 15% Offsite
-    Ads; Redbubble 30 uploads/day and no bots; KDP 3 new titles/day; YPP 1,000 subs + 4,000
-    hours or 10M Shorts views; Shopify 100 points/second standard.
+    Discover (primary); Lemon Squeezy 5% + 50¢ (primary); Etsy $0.20 listing, 6.5% transaction,
+    3% + $0.25 US processing, 12 to 15% Offsite Ads (search-snippet of Etsy's fee page);
+    Redbubble 30 uploads/day and no bots (search-snippet); KDP 3 new titles/day (primary via
+    Publishers Weekly) and AI-generated disclosure (primary); YPP inauthentic-content and AI
+    disclosure rules (primary); YPP 1,000 subs + 4,000 hours or 10M Shorts views
+    (search-snippet); Shopify 100 points/second standard (primary); Printify/Printful API
+    limits (primary); Shutterstock no-AI rule (primary).
 
 ---
 
@@ -458,5 +517,10 @@ These are solid enough that the final report should not hedge them into uselessn
 - The $47k / $6.5k / OpenClaw runaway-spend incidents (anecdotal, no primary post-mortem).
 - "90% of Shopify stores fail in 120 days" (untraceable).
 - Any earnings figure from a course seller, a Gumroad course listing, or a tool vendor.
-- Lemon Squeezy fee and Stripe-ownership detail (secondary; confirm on lemonsqueezy.com).
+- Lemon Squeezy Stripe-ownership detail (secondary). The fee itself is now primary.
+- Printify's "Top sellers (18+ months) $10,000 to $80,000+" line (vendor claim, no data shown).
+- Etsy "10,000 calls/day" default (historical; current page gives no default number).
 - Adobe Stock AI policy (not checked this pass).
+- Etsy's legal pages (API Terms, Creativity Standards, Seller Policy, Fee Basics), Redbubble's
+  guidelines and Freepik's AI guidelines all sit behind bot walls here; the primary report needs
+  someone to open them in a browser and record the date read.
